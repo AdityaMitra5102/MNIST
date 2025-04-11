@@ -1,0 +1,13 @@
+[Unit]
+Description=My RADIUS Server
+
+[Service]
+User=root
+WorkingDirectory=/etc/rad
+ExecStart=/usr/bin/myrad.py
+# optional items below
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

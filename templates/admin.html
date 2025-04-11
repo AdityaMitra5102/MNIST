@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel - User IP Management</title>
+  <script src="{{ url_for('static', filename = 'tailwind.js') }}"></script>
+</head>
+<body class="bg-gray-100 p-6 text-gray-900">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-4">User Access Control Panel</h1>
+    <div id="user-list" class="space-y-4 mb-6"></div>
+
+    <div class="space-x-2 mt-4">
+      <button onclick="addUser()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        + Add User
+      </button>
+      <button onclick="saveUsers()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+        💾 Save
+      </button>
+      <button onclick="downloadJson()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+        ⬇ Download JSON
+      </button>
+      <label class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 cursor-pointer">
+        ⬆ Upload JSON
+        <input type="file" accept=".json" onchange="uploadJson(this)" class="hidden">
+      </label>
+    </div>
+  </div>
+
+  <script>
+    let userData = {};
+
+    async function fetchUsers() {
+      try {
+        const res = await fetch('/getusers');
+        userDataStr = await res.text();
+        console.log(userDataStr);
+        userData=JSON.parse(userDataStr)
+        console.log(userData)
+      } catch (e) {
+        console.log(e);
+        userData = {};
+      }
+      renderUsers();
+    }
+
+    function renderUsers() {
+      const container = document.getElementById('user-list');
+      container.innerHTML = '';
+
+      Object.entries(userData).forEach(([username, ips]) => {
+        container.appendChild(createUserCard(username, ips));
+      });
+    }
+
+    function createUserCard(username, ips) {
+      const card = document.createElement('div');
+      card.className = 'bg-white p-4 rounded shadow';
+      card.dataset.username = username;
+
+      const userInputId = `username-${username}`;
+
+      const ipsHtml = ips.map((ip, idx) => `
+        <div class="flex space-x-2 mb-1">
+          <input class="flex-1 border rounded px-2 py-1" value="${ip}" oninput="updateIP('${username}', ${idx}, this.value)" />
+          <button onclick="removeIP('${username}', ${idx})" class="text-sm text-red-500">Remove</button>
+        </div>
+      `).join('');
+
+      card.innerHTML = `
+        <div class="flex justify-between items-center mb-2">
+          <input id="${userInputId}" class="text-xl font-semibold border-b border-gray-300 focus:outline-none focus:border-blue-500" value="${username}" />
+          <button onclick="removeUser('${username}')" class="text-red-600 hover:text-red-800">🗑 Remove User</button>
+        </div>
+        <div class="space-y-1" id="ip-list-${username}">
+          ${ipsHtml}
+        </div>
+        <button onclick="addIP('${username}')" class="mt-2 text-blue-600 hover:underline text-sm">+ Add IP</button>
+      `;
+
+      setTimeout(() => {
+        const inputEl = document.getElementById(userInputId);
+        inputEl.addEventListener('blur', () => {
+          const newName = inputEl.value.trim();
+          if (newName && newName !== username && !userData[newName]) {
+            userData[newName] = userData[username];
+            delete userData[username];
+            renderUsers();
+          } else {
+            inputEl.value = username;
+          }
+        });
+      }, 0);
+
+      return card;
+    }
+
+    function addUser() {
+      let base = 'new_user';
+      let count = 1;
+      while (userData[`${base}${count}`]) count++;
+      const name = `${base}${count}`;
+      userData[name] = ['*'];
+      renderUsers();
+    }
+
+    function removeUser(username) {
+      delete userData[username];
+      renderUsers();
+    }
+
+    function addIP(username) {
+      userData[username].push('');
+      renderUsers();
+    }
+
+    function removeIP(username, index) {
+      userData[username].splice(index, 1);
+      renderUsers();
+    }
+
+    function updateIP(username, index, value) {
+      userData[username][index] = value;
+    }
+
+    async function saveUsers() {
+      console.log("Saving JSON:", userData);
+      mybodyy=JSON.stringify(userData)
+      console.log(mybodyy)
+      try {
+        const res = await fetch('/saveusers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: mybodyy
+          });
+        if (res.ok) {
+          alert('✅ Saved successfully');
+        } else {
+          alert('❌ Failed to save');
+        }
+      } catch (e) {
+        alert('❌ Error while saving');
+      }
+    }
+
+    function downloadJson() {
+      const blob = new Blob([JSON.stringify(userData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'users.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function uploadJson(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const uploaded = JSON.parse(e.target.result);
+          if (typeof uploaded !== 'object' || Array.isArray(uploaded)) throw "Invalid format";
+          for (const key in uploaded) {
+            if (!Array.isArray(uploaded[key])) throw "Each user must map to an array";
+          }
+          userData = uploaded;
+          renderUsers();
+          alert('✅ JSON uploaded successfully');
+        } catch (err) {
+          alert('❌ Invalid JSON format');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    fetchUsers();
+  </script>
+</body>
+</html>
+

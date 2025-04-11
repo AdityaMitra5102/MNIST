@@ -1,0 +1,22 @@
+enable
+configure terminal
+
+interface ethernet0/0
+ ip address dhcp
+ no shutdown
+exit
+
+aaa new-model
+radius-server host 192.168.31.100 auth-port 1812 acct-port 1813 key anysecret
+radius-server timeout 610
+radius-server retransmit 0
+aaa authentication login RADIUS-AUTH group radius local
+username admin privilege 15 secret Admin123
+
+line console 0
+ login authentication RADIUS-AUTH
+exit
+
+
+exit
+write memory
